@@ -17,6 +17,8 @@
 package com.example.android.firebaseui_login_sample
 
 import android.app.Activity
+import android.app.Activity.RESULT_CANCELED
+import android.app.Activity.RESULT_OK
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -27,12 +29,14 @@ import android.view.ViewGroup
 import androidx.lifecycle.Observer
 import androidx.navigation.fragment.findNavController
 import androidx.activity.addCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.viewModels
 import androidx.navigation.NavController
 import com.example.android.firebaseui_login_sample.databinding.*
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.IdpResponse
+import com.firebase.ui.auth.util.ExtraConstants
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.auth.FirebaseAuth
 
@@ -49,12 +53,12 @@ class LoginFragment : Fragment() {
     private lateinit var navController: NavController
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+            inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View? {
 
         // Inflate the layout for this fragment
         val binding = DataBindingUtil.inflate<FragmentLoginBinding>(
-            inflater, R.layout.fragment_login, container, false
+                inflater, R.layout.fragment_login, container, false
         )
 
         binding.authButton.setOnClickListener { launchSignInFlow() }
@@ -79,12 +83,12 @@ class LoginFragment : Fragment() {
             when (authenticationState) {
                 LoginViewModel.AuthenticationState.AUTHENTICATED -> navController.popBackStack()
                 LoginViewModel.AuthenticationState.INVALID_AUTHENTICATION -> Snackbar.make(
-                    view, requireActivity().getString(R.string.login_unsuccessful_msg),
-                    Snackbar.LENGTH_LONG
+                        view, requireActivity().getString(R.string.login_unsuccessful_msg),
+                        Snackbar.LENGTH_LONG
                 ).show()
                 else -> Log.e(
-                    TAG,
-                    "Authentication state that doesn't require any UI change $authenticationState"
+                        TAG,
+                        "Authentication state that doesn't require any UI change $authenticationState"
                 )
             }
         })
@@ -94,35 +98,42 @@ class LoginFragment : Fragment() {
         // Give users the option to sign in / register with their email or Google account. If users
         // choose to register with their email, they will need to create a password as well.
         val providers = arrayListOf(
-            AuthUI.IdpConfig.EmailBuilder().build(), AuthUI.IdpConfig.GoogleBuilder().build()
+                AuthUI.IdpConfig.EmailBuilder().build(), AuthUI.IdpConfig.GoogleBuilder().build()
         )
 
         // Create and launch sign-in intent. We listen to the response of this activity with the
         // SIGN_IN_RESULT_CODE code.
-        startActivityForResult(
-            AuthUI.getInstance().createSignInIntentBuilder().setAvailableProviders(
-                providers
-            ).build(), SIGN_IN_RESULT_CODE
-        )
+
+        AuthUI.getInstance().createSignInIntentBuilder().setAvailableProviders(providers)
+                .setTosAndPrivacyPolicyUrls("https://joebirch.co/terms.html", "https://joebirch.co/privacy.html")
+//            .setLogo(R.drawable.ic_logo)
+                .build().apply {
+                    startForResult.launch(this)
+                }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == SIGN_IN_RESULT_CODE) {
-            val response = IdpResponse.fromResultIntent(data)
-            if (resultCode == Activity.RESULT_OK) {
-                // Successfully signed in user.
-                Log.i(
-                    TAG,
-                    "Successfully signed in user " +
-                            "${FirebaseAuth.getInstance().currentUser?.displayName}!"
-                )
-            } else {
-                // Sign in failed. If response is null the user canceled the sign-in flow using
-                // the back button. Otherwise check response.getError().getErrorCode() and handle
-                // the error.
-                Log.i(TAG, "Sign in unsuccessful ${response?.error?.errorCode}")
+    // General activity result contract
+    private val startForResult =
+            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                val response = IdpResponse.fromResultIntent(result.data)
+                when(result.resultCode){
+                    RESULT_OK -> {
+                        Log.i(
+                                TAG,
+                                "Successfully signed in user " +
+                                        "${FirebaseAuth.getInstance().currentUser?.displayName}!"
+                        )
+                    }
+                    RESULT_CANCELED -> {
+                        Log.v(TAG, "\t\tSign in cancelled$result")
+
+                    } else -> {
+                    // Sign in failed. If response is null the user canceled the sign-in flow using
+                    // the back button. Otherwise check response.getError().getErrorCode() and handle
+                    // the error.
+                    Log.i(TAG, "Sign in unsuccessful ${response?.error?.errorCode}")
+                } }
             }
-        }
-    }
+
+
 }
